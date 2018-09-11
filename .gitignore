@@ -1,0 +1,19 @@
+# Ignore the private TLS files
+/ca.key
+/hack/tls/*.key
+/hack/tls/*.crt
+/hack/tls/*.srl
+
+# Ignore the data directories and secure files
+/.terraform/
+/data
+/*/data
+/.terraform/
+/*.tfstate*
+/secure.auto.tfvars
+/secure.env
+
+# Ignore the hack dir
+/hack/Dockerfile*
+/hack/*.tar.gz
+/hack/Makefile
