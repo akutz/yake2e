@@ -5,12 +5,12 @@ data "http" "etcd_discovery" {
 }
 
 data "http" "yakity" {
-  url = "https://raw.githubusercontent.com/akutz/yakity/master/yakity.sh"
+  url = "${var.yakity_url}"
 }
 
 locals {
   etcd_discovery = "${data.http.etcd_discovery.body}"
-  yakity_sh      = "${data.http.yakity.body}"
+  yakity_sh      = "${var.yakity != "" ? base64decode(var.yakity) : var.yakity_file != "" ? file(var.yakity_file) : data.http.yakity.body}"
 }
 
 data "template_file" "ctl_network_hostname" {

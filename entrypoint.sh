@@ -16,6 +16,10 @@ if [ -n "${NAME}" ]; then
   terraform init
 fi
 
+# If there's a yakity.sh in the data directory then use it.
+YAKITY_SH="$(pwd)/data/yakity.sh"
+[ -f "${YAKITY_SH}" ] && export TF_VAR_yakity_file="${YAKITY_SH}"
+
 if [ "${CMD}" = "plan" ]; then
   exec terraform plan
 elif [ "${CMD}" = "up" ]; then
