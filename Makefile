@@ -50,10 +50,16 @@ up:
 down:
 	$(DOCKER_RUN) down $(NAME)
 
+destroy:
+	for i in 1 2 3; do \
+    govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-c0$${i}-$(NAME)" >/dev/null 2>&1 \
+    govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-w0$${i}-$(NAME)" >/dev/null 2>&1 \
+  done
+
 plan:
 	$(DOCKER_RUN) plan $(NAME)
 
 push:
 	docker push $(IMAGE)
 
-PHONY: build up down plan push
+PHONY: build up down destroy plan push
