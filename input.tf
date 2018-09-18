@@ -211,7 +211,11 @@ variable "install_conformance_tests" {
 }
 
 variable "run_conformance_tests" {
-  default = true
+  default = false
+}
+
+variable "service_dns_provider" {
+  default = "kube-dns"
 }
 
 ////////////////////////////////////////////////////////////////////////////////

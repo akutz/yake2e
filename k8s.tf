@@ -94,6 +94,10 @@ SERVICE_IPV4_ADDRESS="$${k8s_service_ip}"
 # The IP address of the DNS server for the service network.
 SERVICE_DNS_IPV4_ADDRESS="$${k8s_service_dns_ip}"
 
+# The name of the service DNS provider. Valid values include "coredns".
+# Any other value results in kube-dns being used.
+SERVICE_DNS_PROVIDER="$${service_dns_provider}"
+
 # The domain name used by the K8s service network.
 SERVICE_DOMAIN="$${k8s_service_domain}"
 
@@ -155,18 +159,19 @@ EOF
     tls_ca_key = "${base64gzip(local.tls_ca_key)}"
 
     //
-    k8s_version        = "${var.k8s_version}"
-    k8s_cluster_admin  = "${var.cluster_admin}"
-    k8s_cluster_cidr   = "${var.cluster_cidr}"
-    k8s_cluster_fqdn   = "${local.cluster_fqdn}"
-    k8s_cluster_name   = "${var.cluster_name}"
-    k8s_secure_port    = "${var.api_secure_port}"
-    k8s_service_cidr   = "${var.service_cidr}"
-    k8s_service_ip     = "${local.cluster_svc_ip}"
-    k8s_service_dns_ip = "${local.cluster_svc_dns_ip}"
-    k8s_service_domain = "${local.cluster_svc_domain}"
-    k8s_service_fqdn   = "${local.cluster_svc_fqdn}"
-    k8s_service_name   = "${local.cluster_svc_name}"
+    k8s_version          = "${var.k8s_version}"
+    k8s_cluster_admin    = "${var.cluster_admin}"
+    k8s_cluster_cidr     = "${var.cluster_cidr}"
+    k8s_cluster_fqdn     = "${local.cluster_fqdn}"
+    k8s_cluster_name     = "${var.cluster_name}"
+    k8s_secure_port      = "${var.api_secure_port}"
+    k8s_service_cidr     = "${var.service_cidr}"
+    k8s_service_ip       = "${local.cluster_svc_ip}"
+    k8s_service_dns_ip   = "${local.cluster_svc_dns_ip}"
+    k8s_service_domain   = "${local.cluster_svc_domain}"
+    k8s_service_fqdn     = "${local.cluster_svc_fqdn}"
+    k8s_service_name     = "${local.cluster_svc_name}"
+    service_dns_provider = "${var.service_dns_provider}"
 
     //
     install_conformance_tests = "${var.install_conformance_tests}"

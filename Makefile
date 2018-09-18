@@ -29,17 +29,23 @@ DOCKER_ENV += --env TF_VAR_wrk_count="$(WORKERS)"
 ifneq (,$(wildcard secure.env))
 DOCKER_ENV += --env-file secure.env
 endif
-ifneq (,$(YAKITY))
-ifneq (,$(wildcard $(YAKITY)))
-data/yakity.sh: $(YAKITY)
-	mkdir -p "$(@D)" && cp -f "$<" "$@"
-up: data/yakity.sh
-down: data/yakity.sh
-plan: data/yakity.sh
-endif
+ifneq (,$(wildcard config.env))
+DOCKER_ENV += --env-file config.env
 endif
 
-DOCKER_RUN := docker run --rm $(DOCKER_ENV) -v $$(pwd)/data:/tf/data $(IMAGE)
+# Build the command used to run the Docker image.
+DOCKER_RUN := docker run --rm $(DOCKER_ENV) -v $$(pwd)/data:/tf/data
+
+# If YAKITY is set and a valid file path then copy it
+# to data/yakity.sh so the container can access it via
+# the mounted volume path.
+YAKITY ?= ../yakity/yakity.sh
+ifneq (,$(wildcard $(YAKITY)))
+	DOCKER_RUN += -v $(abspath $(YAKITY)):/tf/data/yakity.sh:ro
+endif
+
+# Complete the docker run command by appending the image.
+DOCKER_RUN += $(IMAGE)
 
 build:
 	docker build -t $(IMAGE) .
@@ -52,9 +58,9 @@ down:
 
 destroy:
 	for i in 1 2 3; do \
-    govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-c0$${i}-$(NAME)" >/dev/null 2>&1 \
-    govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-w0$${i}-$(NAME)" >/dev/null 2>&1 \
-  done
+	  govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-c0$${i}-$(NAME)" >/dev/null 2>&1; \
+	  govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-w0$${i}-$(NAME)" >/dev/null 2>&1; \
+	done
 
 plan:
 	$(DOCKER_RUN) plan $(NAME)

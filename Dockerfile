@@ -1,19 +1,21 @@
+FROM golang:1.11.0-alpine3.8 as build
+LABEL "maintainer" "Andrew Kutz <akutz@vmware.com>"
+
+RUN apk --no-cache add git
+
+ENV GOVMOMI_VERSION=0.18.0
+RUN go get -d github.com/vmware/govmomi/govc
+RUN git -C "${GOPATH}/src/github.com/vmware/govmomi" checkout -b v${GOVMOMI_VERSION} v${GOVMOMI_VERSION}
+RUN go install github.com/vmware/govmomi/govc
+
 FROM alpine:3.8
 LABEL "maintainer" "Andrew Kutz <akutz@vmware.com>"
 
+# Copy govc from the build stage.
+COPY --from=build /go/bin/govc /usr/local/bin/govc
+
 # Install the common dependencies.
-RUN apk --no-cache add \
-    bash \
-    ca-certificates \
-    curl \
-    git \
-    jq \
-    less \
-    libc6-compat \
-    openssh-client \
-    tar \
-    unzip \
-    util-linux
+RUN apk --no-cache add ca-certificates curl unzip
 
 # Download Terraform and place its binary in /usr/bin.
 ENV TF_VERSION=0.11.8
