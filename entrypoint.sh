@@ -17,8 +17,25 @@ if [ -n "${NAME}" ]; then
 fi
 
 # If there's a yakity.sh in the data directory then use it.
-YAKITY_SH="$(pwd)/data/yakity.sh"
-[ -f "${YAKITY_SH}" ] && export TF_VAR_yakity_file="${YAKITY_SH}"
+if [ -f "data/yakity.sh" ]; then
+  cat <<EOF >/tf/yakity.rb
+require 'socket'
+require 'uri'
+server = TCPServer.new('127.0.0.1', 8000)
+socket = server.accept; socket.gets
+File.open("data/yakity.sh", "rb") do |file|
+  socket.print "HTTP/1.1 200 OK\\r\\n" +
+    "Content-Type: text/plain\\r\\n" +
+    "Content-Length: #{file.size}\\r\\n" +
+    "Connection: close\\r\\n" +
+    "\\r\\n"
+    IO.copy_stream(file, socket)
+  socket.close
+end
+EOF
+  ruby yakity.rb &
+  export TF_VAR_yakity_url="http://127.0.0.1:8000"
+fi
 
 if [ "${CMD}" = "plan" ]; then
   exec terraform plan

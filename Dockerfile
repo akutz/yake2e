@@ -15,7 +15,7 @@ LABEL "maintainer" "Andrew Kutz <akutz@vmware.com>"
 COPY --from=build /go/bin/govc /usr/local/bin/govc
 
 # Install the common dependencies.
-RUN apk --no-cache add ca-certificates curl unzip
+RUN apk --no-cache add ca-certificates curl unzip ruby
 
 # Download Terraform and place its binary in /usr/bin.
 ENV TF_VERSION=0.11.8

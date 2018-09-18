@@ -34,18 +34,6 @@ variable "os_seed_gid" {
   default = "1000"
 }
 
-// May be set to a base64-encoded yakity source. This allows a custom version
-// of yakity to be used instead of pulling from the remote source.
-variable "yakity" {
-  default = ""
-}
-
-// If var.yakity is not set then Terraform checks to see if var.yakity_file
-// is set. If so, then the yakity script is loaded from a local file.
-variable "yakity_file" {
-  default = ""
-}
-
 // If var.yakity and var.yakity_file are not set then the script is fetched 
 // from the following URL.
 variable "yakity_url" {
