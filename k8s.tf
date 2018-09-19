@@ -65,7 +65,7 @@ TLS_CA_CRT_GZ="$${tls_ca_crt}"
 TLS_CA_KEY_GZ="$${tls_ca_key}"
 
 # The name of the cloud provider to use.
-CLOUD_PROVIDER=vsphere
+CLOUD_PROVIDER=$${cloud_provider}
 
 # The gzip'd, base-64 encoded cloud provider configuration to use.
 CLOUD_CONFIG="$${cloud_config}"
@@ -152,7 +152,8 @@ EOF
     encryption_key = "${var.k8s_encryption_key}"
 
     //
-    cloud_config = "${base64gzip(data.template_file.cloud_provider_config.rendered)}"
+    cloud_provider = "${var.cloud_provider}"
+    cloud_config   = "${var.cloud_provider == "external" ? base64gzip(data.template_file.external_cloud_provider_config.rendered) : base64gzip(data.template_file.cloud_provider_config.rendered)}"
 
     //
     tls_ca_crt = "${base64gzip(local.tls_ca_crt)}"

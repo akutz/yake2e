@@ -92,6 +92,35 @@ EOF
   }
 }
 
+data "template_file" "external_cloud_provider_config" {
+  template = <<EOF
+[Global]
+  user               = "$${username}"
+  password           = "$${password}"
+  port               = "$${port}"
+  insecure-flag      = "$${insecure}"
+  datacenters        = "$${datacenter}"
+
+[VirtualCenter "$${server}"]
+
+[Network]
+  public-network     = "$${network}"
+EOF
+
+  vars {
+    server        = "${var.vsphere_server}"
+    username      = "${var.vsphere_user}"
+    password      = "${var.vsphere_password}"
+    port          = "${var.vsphere_server_port}"
+    insecure      = "${var.vsphere_allow_unverified_ssl ? 1 : 0}"
+    datacenter    = "${var.vsphere_datacenter}"
+    folder        = "${var.vsphere_folder}"
+    datastore     = "${var.vsphere_datastore}"
+    resource_pool = "${var.vsphere_resource_pool}"
+    network       = "${var.vsphere_network}"
+  }
+}
+
 data "template_file" "ctl_cloud_network" {
   count = "${var.ctl_count}"
 

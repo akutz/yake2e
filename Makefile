@@ -21,7 +21,7 @@ K8S_VERSION ?= release/stable
 
 # The number of conroller and worker nodes.
 CONTROLLERS ?= 2
-WORKERS ?= 1
+WORKERS ?= 2
 
 DOCKER_ENV += --env TF_VAR_k8s_version="$(K8S_VERSION)"
 DOCKER_ENV += --env TF_VAR_ctl_count="$(CONTROLLERS)"

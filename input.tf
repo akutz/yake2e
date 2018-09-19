@@ -146,6 +146,11 @@ variable "k8s_version" {
   default = "release/stable"
 }
 
+// The name of the cloud provider to use.
+variable "cloud_provider" {
+  default = "vsphere"
+}
+
 // The name of the cluster
 variable "cluster_name" {
   default = "k8s"
