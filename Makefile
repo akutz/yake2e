@@ -23,9 +23,13 @@ K8S_VERSION ?= release/stable
 CONTROLLERS ?= 2
 WORKERS ?= 2
 
+# The cloud provider to use.
+CLOUD_PROVIDER ?= vsphere
+
 DOCKER_ENV += --env TF_VAR_k8s_version="$(K8S_VERSION)"
 DOCKER_ENV += --env TF_VAR_ctl_count="$(CONTROLLERS)"
 DOCKER_ENV += --env TF_VAR_wrk_count="$(WORKERS)"
+DOCKER_ENV += --env TF_VAR_cloud_provider="$(CLOUD_PROVIDER)"
 ifneq (,$(wildcard secure.env))
 DOCKER_ENV += --env-file secure.env
 endif
