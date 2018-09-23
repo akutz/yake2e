@@ -1,6 +1,7 @@
 all: build
 
-IMAGE := akutz/vk8s-conformance
+E2E_IMAGE := gcr.io/kubernetes-conformance-testing/yake2e:latest
+E2E_JOB_IMAGE := gcr.io/kubernetes-conformance-testing/yake2e-job:latest
 
 # Versions of the software packages installed on the controller and
 # worker nodes. Please note that not all the software packages listed
@@ -59,41 +60,47 @@ endif
 endif
 
 # Complete the docker run command by appending the image.
-DOCKER_RUN_SH := $(DOCKER_RUN) -i $(IMAGE)
-DOCKER_RUN += $(IMAGE)
+DOCKER_RUN_SH := $(DOCKER_RUN) -i $(E2E_IMAGE)
+DOCKER_RUN += $(E2E_IMAGE)
 
-.built: *.tf vmc/*.tf \
-		cloud_config.yaml \
-		entrypoint.sh \
-		Dockerfile
-	docker build -t $(IMAGE) . && touch "$@"
+.Dockerfile.built: 	Dockerfile \
+					*.tf vmc/*.tf \
+					cloud_config.yaml \
+					entrypoint.sh
+	docker build -t $(E2E_IMAGE) . && touch "$@"
 
-build: .built
+.Dockerfile.job.built: Dockerfile.job
+	docker build -t $(E2E_JOB_IMAGE) -f "$<" . && touch "$@"
 
-.pushed: .built
-	docker push $(IMAGE) && touch "$@"
+build: .Dockerfile.built .Dockerfile.job.built
 
-push: .pushed
+.Dockerfile.pushed: .Dockerfile.built
+	docker push $(E2E_IMAGE) && touch "$@"
 
-up: .built
+.Dockerfile.job.pushed: .Dockerfile.job.built
+	docker push $(E2E_JOB_IMAGE) && touch "$@"
+
+push: .Dockerfile.pushed .Dockerfile.job.pushed
+
+up: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@
 
-down: .built
+down: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@
 
-plan: .built
+plan: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@
 
-info: up
+info: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@ $(OUTPUT)
 
-test: .built
+test: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@ $(GINKGO_FOCUS)
 
-logs: .built
+logs: .Dockerfile.built
 	$(DOCKER_RUN) $(NAME) $@
 
-sh: .built
+sh: .Dockerfile.built
 	$(DOCKER_RUN_SH) $(NAME) $@
 
 PHONY: up down plan info test logs sh

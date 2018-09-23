@@ -1,13 +1,35 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                vSphere                                     //
 ////////////////////////////////////////////////////////////////////////////////
+locals {
+  vm_path_prefix   = "${var.cloud_provider == "external" ? "ccm" : "k8s"}"
+  name_sans_prefix = "${replace(var.name, "/^(?:[^\\-]+\\-)?(.*)$/", "$1")}"
+
+  vsphere_folder        = "${var.vsphere_folder}/${local.vm_path_prefix}/${local.name_sans_prefix}"
+  vsphere_resource_pool = "${var.vsphere_resource_pool}/${local.vm_path_prefix}"
+
+  vsphere_resource_pools = ["${split("/", local.vsphere_resource_pool)}"]
+}
+
 data "vsphere_datacenter" "datacenter" {
   name = "${var.vsphere_datacenter}"
 }
 
-data "vsphere_resource_pool" "resource_pool" {
-  name          = "${var.vsphere_resource_pool}"
+resource "vsphere_folder" "folder" {
+  path          = "${local.vsphere_folder}"
+  type          = "vm"
   datacenter_id = "${data.vsphere_datacenter.datacenter.id}"
+}
+
+data "vsphere_resource_pool" "resource_pool" {
+  count         = "${length(local.vsphere_resource_pools)}"
+  name          = "${element(local.vsphere_resource_pools, count.index)}"
+  datacenter_id = "${data.vsphere_datacenter.datacenter.id}"
+}
+
+resource "vsphere_resource_pool" "resource_pool" {
+  name                    = "${local.name_sans_prefix}"
+  parent_resource_pool_id = "${element(data.vsphere_resource_pool.resource_pool.*.id, length(data.vsphere_resource_pool.resource_pool.*.id) - 1)}"
 }
 
 data "vsphere_datastore" "datastore" {
@@ -46,9 +68,9 @@ resource "vsphere_virtual_machine" "controller" {
 
   name = "${format(var.ctl_vm_name, count.index+1)}"
 
-  resource_pool_id     = "${data.vsphere_resource_pool.resource_pool.id}"
   datastore_id         = "${data.vsphere_datastore.datastore.id}"
-  folder               = "${var.vsphere_folder}"
+  folder               = "${vsphere_folder.folder.path}"
+  resource_pool_id     = "${vsphere_resource_pool.resource_pool.id}"
   guest_id             = "${data.vsphere_virtual_machine.template.guest_id}"
   scsi_type            = "${data.vsphere_virtual_machine.template.scsi_type}"
   num_cpus             = "${var.ctl_vm_num_cpu}"
@@ -90,9 +112,9 @@ resource "vsphere_virtual_machine" "worker" {
 
   name = "${format(var.wrk_vm_name, count.index+1)}"
 
-  resource_pool_id     = "${data.vsphere_resource_pool.resource_pool.id}"
   datastore_id         = "${data.vsphere_datastore.datastore.id}"
-  folder               = "${var.vsphere_folder}"
+  folder               = "${vsphere_folder.folder.path}"
+  resource_pool_id     = "${vsphere_resource_pool.resource_pool.id}"
   guest_id             = "${data.vsphere_virtual_machine.template.guest_id}"
   scsi_type            = "${data.vsphere_virtual_machine.template.scsi_type}"
   num_cpus             = "${var.wrk_vm_num_cpu}"

@@ -1,0 +1,40 @@
+#
+# This image is meant to be scheduled as a pod or job on Kubernetes
+# clusters turned up with the tool https://github.com/akutz/vk8s-conformance.
+#
+# This image will only work if:
+#   1. The "kubectl" binary is available at "/usr/local/bin/kubectl"
+#   2. A "kubeconfig" file is available at "/etc/kubernetes/kubeconfig"
+#   3. The contents of "kubernetes-test.tar.gz" are inflated with its
+#      leading path component stripped to "/var/lib/kubernetes/e2e".
+#
+FROM alpine:3.8
+LABEL "maintainer" "Andrew Kutz <akutz@vmware.com>"
+
+# Install the common dependencies.
+RUN apk --no-cache add ca-certificates curl
+
+# Clean up the alpine cache.
+RUN rm -rf /var/cache/apk/*
+
+# Link some musl so e2e.test doesn't die.
+RUN mkdir -p /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2
+
+# Define and assign the working directory.
+RUN mkdir -p /var/lib/kubernetes
+WORKDIR /var/lib/kubernetes
+
+# Define the kubeconfig.
+ENV KUBECONFIG=/etc/kubernetes/kubeconfig
+
+# The default argument list for the entrypoint, the e2e.test binary.
+CMD [ \
+  "-ginkgo.focus", "\\[Conformance\\]", \
+  "-ginkgo.skip",  "Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]", \
+  "--", \
+  "--disable-log-dump", \
+  "2>&1" \
+]
+
+# The entrypoing for this image is the e2e.test binary.
+ENTRYPOINT [ "/var/lib/kubernetes/e2e/platforms/linux/amd64/e2e.test" ]

@@ -115,19 +115,19 @@ variable "vsphere_datacenter" {
   default = "SDDC-Datacenter"
 }
 
+// The folder path where VMs are located
+variable "vsphere_folder" {
+  default = "Workloads/yake2e"
+}
+
 // The name of the resource pool to which VMs belong
 variable "vsphere_resource_pool" {
-  default = "Compute-ResourcePool"
+  default = "Compute-ResourcePool/yake2e"
 }
 
 // The name of the datastore where VMs are located
 variable "vsphere_datastore" {
   default = "WorkloadDatastore"
-}
-
-// The folder path where VMs are located
-variable "vsphere_folder" {
-  default = "Workloads"
 }
 
 // The name of the vSphere network to which the VMs' NICs will be attached.
@@ -174,7 +174,7 @@ variable "ctl_count" {
 
 // The number of worker nodes
 variable "wrk_count" {
-  default = "1"
+  default = "2"
 }
 
 variable "cluster_admin" {

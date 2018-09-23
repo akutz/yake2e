@@ -18,6 +18,9 @@ ARGS
     is being deployed as well as in the context of the
     data directory.
 
+    If TF_VAR_cloud_provider=external then "-ccm" is
+    appended to whatever name is provided.
+
   CMD
     The command to execute.
 
@@ -76,25 +79,34 @@ CURL="curl --retry 5 --retry-delay 1 --retry-max-time 120"
 NAME="${1}"; shift
 CMD="${1}"; shift
 
+# If TF_VAR_cloud_provider=external then NAME=${NAME}-ccm to reflect
+# the use of an external cloud provider.
+old_name="${NAME}"
+
+# The warning (SC2154) for TF_VARTF_VAR_cloud_provider not being assigned
+# is disabled since the environment variable is defined externally.
+#
+# shellcheck disable=SC2154
+if [ "${TF_VAR_cloud_provider}" = "external" ]; then
+  NAME_PREFIX="ccm"
+fi
+NAME_PREFIX="${NAME_PREFIX:-k8s}"
+NAME="${NAME_PREFIX}-${NAME}"
+echo "${old_name} is now ${NAME}"
+
 # Configure the data directory.
 mkdir -p data
 sed -i 's~data/terraform.state~data/'"${NAME}"'/terraform.state~g' data.tf
 export TF_VAR_name="${NAME}"
-export TF_VAR_ctl_vm_name="k8s-c%02d-${NAME}"
-export TF_VAR_wrk_vm_name="k8s-w%02d-${NAME}"
+export TF_VAR_ctl_vm_name="c%02d"
+export TF_VAR_wrk_vm_name="w%02d"
 export TF_VAR_ctl_network_hostname="${TF_VAR_ctl_vm_name}"
 export TF_VAR_wrk_network_hostname="${TF_VAR_wrk_vm_name}"
 
-# Check to see if the load-balancer was requested.
-if [ "${AWS_LOAD_BALANCER}" = "true" ]; then
-
-  # If any of the AWS access keys are missing then exit the script.
-  [ -z "${AWS_ACCESS_KEY_ID}" ] && \
-    fatal "load balancer config missing AWS_ACCESS_KEY_ID"
-  [ -z "${AWS_SECRET_ACCESS_KEY}" ] && \
-    fatal "load balancer config missing AWS_SECRET_ACCESS_KEY"
-  [ -z "${AWS_DEFAULT_REGION}" ] && \
-    fatal "load balancer config missing AWS_DEFAULT_REGION"
+# If any of the AWS access keys are missing then exit the script.
+if [ -n "${AWS_ACCESS_KEY_ID}" ] && \
+  [ -n "${AWS_SECRET_ACCESS_KEY}" ] && \
+  [ -n "${AWS_DEFAULT_REGION}" ]; then
 
   # Copy the providers into the project.
   cp -f vmc/providers_aws.tf vmc/providers_local.tf vmc/providers_tls.tf .
@@ -142,9 +154,7 @@ if [ -z "${TF_VAR_yakity_url}" ] && \
     echo "updating an existing yakity gist"
 
     # Read the gist URL from the file or exit with an error.
-    if ! gurl="$(cat data/.yakity.gist)"; then
-      fatal "failed to read data/.yakity.gist"
-    fi
+    gurl="$(cat data/.yakity.gist)" || fatal "failed to read data/.yakity.gist"
 
     # If the file was empty then exist with an error.
     [ -n "${gurl}" ] || fatal "data/.yakity.gist is empty" 1
@@ -176,104 +186,86 @@ if [ -z "${TF_VAR_yakity_url}" ] && \
   echo "using yakity gist ${TF_VAR_yakity_url}"
 fi
 
+# Make sure terraform has everything it needs.
+terraform init
+
 # Check to see if there is a previous etcd discovery URL value. If so, 
 # overwrite etcd.tf with that information.
 if disco=$(terraform output etcd 2>/dev/null) && [ -n "${disco}" ]; then
   printf 'locals {\n  etcd_discovery = "%s"\n}\n' "${disco}" >etcd.tf
 fi
 
-# Make sure terraform has everything it needs.
-terraform init
-
 setup_kube() {
-  KUBE_DIR="data/${NAME}/.kubernetes/linux_amd64"; mkdir -p "${KUBE_DIR}"
-  export PATH="${KUBE_DIR}:${PATH}"
+  kube_dir="data/${NAME}/.kubernetes/linux_amd64"; mkdir -p "${kube_dir}"
+  export PATH="${kube_dir}:${PATH}"
 
-  if [ -f "${KUBE_DIR}/artifactz.txt" ]; then
-    K8S_ARTIFACT_PREFIX=$(cat "${KUBE_DIR}/artifactz.txt")
+  # Get the external FQDN of the cluster from the Terraform output cache.
+  ext_fqdn=$(terraform output external_fqdn) || \
+    fatal "failed to read external fqdn"
+
+  # If there is a cached version of the artifact prefix then read it.
+  if [ -f "data/${NAME}/artifactz" ]; then
+
+    echo "reading existing artifactz.txt"
+
+    # Get the kubertnetes artifact prefix from the file.
+    kube_prefix=$(cat "data/${NAME}/artifactz") || \
+      fatal "failed to read data/${NAME}/artifactz"
+
+  # The artifact prefix has not been cached, so cache it.
   else
-    EXTERNAL_FQDN=$(terraform output external_fqdn)
-    K8S_ARTIFACT_PREFIX=$(${CURL} "http://${EXTERNAL_FQDN}/artifactz")
-    printf '%s' "${K8S_ARTIFACT_PREFIX}" >"${KUBE_DIR}/artifactz.txt"
+    # Get the artifact prefix from the cluster.
+    kube_prefix=$(${CURL} "http://${ext_fqdn}/artifactz" | \
+      tee "data/${NAME}/artifactz") || \
+      fatal "failed to get k8s artifactz prefix"
   fi
 
-  KUBE_CLIENT_URL="${K8S_ARTIFACT_PREFIX}/kubernetes-client-linux-amd64.tar.gz"
-  if [ ! -f "${KUBE_DIR}/kubectl" ]; then
-    ${CURL} -L "${KUBE_CLIENT_URL}" | tar xzC "${KUBE_DIR}" --strip-components=3
+  # If the kubectl program has not been cached then it needs to be downloaded.
+  if [ ! -f "${kube_dir}/kubectl" ]; then
+    ${CURL} -L "${kube_prefix}/kubernetes-client-linux-amd64.tar.gz" | \
+      tar xzC "${kube_dir}" --strip-components=3
+    exit_code="${?}" && \
+      [ "${exit_code}" -gt "1" ] && \
+      fatal "failed to download kubectl" "${exit_code}"
   fi
 
-  KUBECTL="kubectl --kubeconfig "data/${NAME}/kubeconfig""
+  # Define an alias for the kubectl program that includes the path to the
+  # kubeconfig file and targets the e2e namespace for all operations.
+  #
+  # The --kubeconfig flag is used instead of exporting KUBECONFIG because
+  # this results in command lines that can be executed from the host as
+  # well since all paths are relative.
+  KUBECTL="kubectl --kubeconfig "data/${NAME}/kubeconfig" -n e2e"
 }
 
 test_logs() {
   setup_kube || exit
-  while [ -z "${POD_NAME}" ]; do
-    POD_NAME=$(${KUBECTL} get pods --selector=job-name=e2e | \
-               grep Running | awk '{print $1}')
-    [ -n "${POD_NAME}" ] || sleep 1
+
+  # Keep tryin to get the name of the e2e pod until it is running.
+  while [ -z "${pod_name}" ]; do
+    pod_name=$(${KUBECTL} get pods | grep Running | awk '{print $1}')
+    [ -n "${pod_name}" ] || sleep 1
   done
-  ${KUBECTL} logs -f "${POD_NAME}" e2e
+
+  # Tail the logs of the e2e job's pod.
+  ${KUBECTL} logs -f "${pod_name}" || fatal "failed to tail e2e log"
 }
 
 test_start() {
   setup_kube || exit
-  KUBE_TEST_URL="${K8S_ARTIFACT_PREFIX}/kubernetes-test.tar.gz"
 
-  cat <<EOF >"data/${NAME}/test-job-spec.yaml"
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: e2e
-spec:
-  template:
-    spec:
-      volumes:
-      - name: kubernetes
-        emptyDir: {}
-      containers:
-      - name: setup
-        image: centos:7.5.1804
-        volumeMounts:
-        - name: kubernetes
-          mountPath: /var/lib/kubernetes
-        args:
-          - /bin/sh
-          - -c
-          - >
-            echo "\${KUBECONFIG_GZ}" | base64 -d | gzip -d >/var/lib/kubernetes/kubeconfig;
-            ${CURL} ${KUBE_CLIENT_URL} | tar xvzC /var/lib;
-            ${CURL} ${KUBE_TEST_URL} | tar xvzC /var/lib;
-            touch /var/lib/kubernetes/.ready
-        env:
-          - name: KUBECONFIG_GZ
-            value: "$(gzip -9c <"data/${NAME}/kubeconfig" | base64 | tr -d '\n')"
-      - name: e2e
-        image: centos:7.5.1804
-        volumeMounts:
-        - name: kubernetes
-          mountPath: /var/lib/kubernetes
-        args:
-          - /bin/sh
-          - -c
-          - >
-            while [ ! -f /var/lib/kubernetes/.ready ]; do sleep 1; done;
-            /var/lib/kubernetes/platforms/linux/amd64/e2e.test \
-              -ginkgo.focus '\\[Conformance\\]' \
-              -ginkgo.skip 'Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]' \
-              -- \
-              --disable-log-dump \
-              2>&1;
-        env:
-          - name:  KUBECONFIG
-            value: /var/lib/kubernetes/kubeconfig
-          - name:  PATH
-            value: /var/lib/kubernetes/client/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      restartPolicy: Never
-  backoffLimit: 4
-EOF
+  # If the e2e job spec is not cached then download it from the cluster.
+  [ -f "data/${NAME}/e2e-job.yaml" ] || \
+    ${CURL} "http://${ext_fqdn}/e2e/job.yaml" >"data/${NAME}/e2e-job.yaml" || \
+    fatal "failed to download e2e job spec"
 
-  ${KUBECTL} create -f "data/${NAME}/test-job-spec.yaml"
-  ${KUBECTL} get pods --selector=job-name=e2e | grep ContainerCreating
+  # Create the e2e job.
+  ${KUBECTL} create -f "data/${NAME}/e2e-job.yaml" || \
+    fatal "failed to create e2e job"
+
+  # Get the name of the pod created for the e2e job.
+  ${KUBECTL} get pods | grep -v Terminating || \
+    fatal "failed to get e2e pod"
 }
 
 case "${CMD}" in

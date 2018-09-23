@@ -1,6 +1,5 @@
 # Ignore the marker files.
-/.built
-/.pushed
+/.Dockerfile*
 
 # Ignore scratch files.
 /vprep.sh
