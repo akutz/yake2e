@@ -2,6 +2,10 @@
 //                                  Global                                    //
 ////////////////////////////////////////////////////////////////////////////////
 
+// The name of the deployment. Used by some resources as a means to identify
+// the deployment resources.
+variable "name" {}
+
 // Enables debug functionality in parts of the deployment, such as causing
 // shell scripts to enable set -x.
 variable "debug" {
@@ -31,6 +35,7 @@ variable "os_users" {
 variable "os_seed_uid" {
   default = "1000"
 }
+
 variable "os_seed_gid" {
   default = "1000"
 }
@@ -212,6 +217,56 @@ variable "service_dns_provider" {
   default = "kube-dns"
 }
 
+// If defined, each of the following manifest_yaml variables
+// are applied from a control plane node with 
+// "echo VAL | kubectl create -f -- -" using the order specified by the 
+// environment variable's name. The manifests are applied exactly once, 
+// no matter the number of control plane nodes.
+//
+// Each of the values should be gzip'd and base64-encoded.
+variable "manifest_yaml_before_rbac" {
+  default = ""
+}
+
+variable "manifest_yaml_after_rbac" {
+  default = ""
+}
+
+variable "manifest_yaml_after_all" {
+  default = ""
+}
+
+// The log_level variables set the log levels for the
+// various components deployed by yakity. All defaults
+// are controlled by yakity.
+variable "log_level_kubernetes" {
+  default = ""
+}
+
+variable "log_level_kube_apiserver" {
+  default = ""
+}
+
+variable "log_level_kube_scheduler" {
+  default = ""
+}
+
+variable "log_level_kube_controller_manager" {
+  default = ""
+}
+
+variable "log_level_kubelet" {
+  default = ""
+}
+
+variable "log_level_kube_proxy" {
+  default = ""
+}
+
+variable "log_level_cloud_controller_manager" {
+  default = ""
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                   VM                                       //
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,11 +407,6 @@ variable "tls_ca_crt" {
 
 variable "tls_ca_key" {
   default = ""
-}
-
-locals {
-  tls_ca_crt = "${base64decode(var.tls_ca_crt)}"
-  tls_ca_key = "${base64decode(var.tls_ca_key)}"
 }
 
 variable "tls_bits" {

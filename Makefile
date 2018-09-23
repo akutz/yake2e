@@ -38,38 +38,59 @@ DOCKER_ENV += --env-file config.env
 endif
 
 # Build the command used to run the Docker image.
-DOCKER_RUN := docker run --rm $(DOCKER_ENV) -v $$(pwd)/data:/tf/data
+DOCKER_RUN := docker run -t --rm $(DOCKER_ENV) -v $$(pwd)/data:/tf/data
 
-# If YAKITY is set and a valid file path then copy it
-# to data/yakity.sh so the container can access it via
-# the mounted volume path.
+# Map the terraform plug-ins directory into the Docker image so any
+# plug-ins Terraform needs are persisted beyond the lifetime of the
+# container and saves time when launching new containers.
+DOCKER_RUN += -v $$(pwd)/data/.terraform/plugins:/tf/.terraform/plugins
+
+# If GIST and YAKITY are both set to valid file paths then
+# mount GIST to /root/.gist and YAKITY to /tmp/yakity.sh
+# so the local yakity source may be uploaded to a gist and made 
+# available to Terraform's http provider.
+GIST ?= $(HOME)/.gist
 YAKITY ?= ../yakity/yakity.sh
+ifneq (,$(wildcard $(GIST)))
 ifneq (,$(wildcard $(YAKITY)))
-	DOCKER_RUN += -v $(abspath $(YAKITY)):/tf/data/yakity.sh:ro
+DOCKER_RUN += -v $(abspath $(GIST)):/root/.gist:ro
+DOCKER_RUN += -v $(abspath $(YAKITY)):/tmp/yakity.sh:ro
+endif
 endif
 
 # Complete the docker run command by appending the image.
+DOCKER_RUN_SH := $(DOCKER_RUN) -i $(IMAGE)
 DOCKER_RUN += $(IMAGE)
 
-build:
-	docker build -t $(IMAGE) .
+.built: *.tf vmc/*.tf \
+		cloud_config.yaml \
+		entrypoint.sh \
+		Dockerfile
+	docker build -t $(IMAGE) . && touch "$@"
 
-up:
-	$(DOCKER_RUN) up $(NAME)
+build: .built
 
-down:
-	$(DOCKER_RUN) down $(NAME)
+.pushed: .built
+	docker push $(IMAGE) && touch "$@"
 
-destroy:
-	for i in 1 2 3; do \
-	  govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-c0$${i}-$(NAME)" >/dev/null 2>&1; \
-	  govc vm.destroy "/SDDC-Datacenter/vm/Workloads/k8s-w0$${i}-$(NAME)" >/dev/null 2>&1; \
-	done
+push: .pushed
 
-plan:
-	$(DOCKER_RUN) plan $(NAME)
+up: .built
+	$(DOCKER_RUN) $@ $(NAME)
 
-push:
-	docker push $(IMAGE)
+down: .built
+	$(DOCKER_RUN) $@ $(NAME)
 
-PHONY: build up down destroy plan push
+plan: .built
+	$(DOCKER_RUN) $@ $(NAME)
+
+info: up
+	$(DOCKER_RUN) $@ $(NAME) $(OUTPUT)
+
+test: up
+	$(DOCKER_RUN) $@ $(NAME) $(GINKGO_FOCUS)
+
+sh: .built
+	$(DOCKER_RUN_SH) $@ $(NAME)
+
+PHONY: up down plan info test sh

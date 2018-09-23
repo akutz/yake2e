@@ -14,12 +14,8 @@ write_files:
     content: !!binary |
       ${yakity_env}
 
-  - path: /opt/bin/yakity.sh
-    owner: root:root
-    permissions: 0755
-    encoding: gzip
-    content: !!binary |
-      ${yakity_sh}
-
 runcmd:
+  - mkdir -p /opt/bin
+  - curl -sSL -o /opt/bin/yakity.sh ${yakity_url}
+  - chmod 0755 /opt/bin/yakity.sh
   - /opt/bin/yakity.sh ${node_type}

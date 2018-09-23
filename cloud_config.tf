@@ -1,18 +1,3 @@
-provider "http" {}
-
-data "http" "etcd_discovery" {
-  url = "https://discovery.etcd.io/new?size=${var.ctl_count}"
-}
-
-data "http" "yakity" {
-  url = "${var.yakity_url}"
-}
-
-locals {
-  etcd_discovery = "${data.http.etcd_discovery.body}"
-  yakity_sh      = "${data.http.yakity.body}"
-}
-
 data "template_file" "ctl_network_hostname" {
   count    = "${var.ctl_count}"
   template = "${format(var.ctl_network_hostname, count.index+1)}"
@@ -50,6 +35,25 @@ EOF
   vars {
     name = "${element(keys(var.os_users), count.index)}"
     key  = "${element(values(var.os_users), count.index)}"
+  }
+}
+
+data "template_file" "manifest_secrets_yaml" {
+  template = <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloud-provider-vsphere-credentials
+  namespace: kube-system
+data:
+  $${server}.username: "$${username}"
+  $${server}.password: "$${password}"
+EOF
+
+  vars {
+    server   = "${var.vsphere_server}"
+    username = "${base64encode(var.vsphere_user)}"
+    password = "${base64encode(var.vsphere_password)}"
   }
 }
 
@@ -92,11 +96,12 @@ EOF
   }
 }
 
-data "template_file" "external_cloud_provider_config" {
+data "template_file" "ccm_config" {
   template = <<EOF
 [Global]
-  user               = "$${username}"
-  password           = "$${password}"
+  secret-name        = "cloud-provider-vsphere-credentials"
+  secret-namespace   = "kube-system"
+  service-account    = "cloud-controller-manager"
   port               = "$${port}"
   insecure-flag      = "$${insecure}"
   datacenters        = "$${datacenter}"
@@ -108,16 +113,13 @@ data "template_file" "external_cloud_provider_config" {
 EOF
 
   vars {
-    server        = "${var.vsphere_server}"
-    username      = "${var.vsphere_user}"
-    password      = "${var.vsphere_password}"
-    port          = "${var.vsphere_server_port}"
-    insecure      = "${var.vsphere_allow_unverified_ssl ? 1 : 0}"
-    datacenter    = "${var.vsphere_datacenter}"
-    folder        = "${var.vsphere_folder}"
-    datastore     = "${var.vsphere_datastore}"
-    resource_pool = "${var.vsphere_resource_pool}"
-    network       = "${var.vsphere_network}"
+    server     = "${var.vsphere_server}"
+    username   = "${var.vsphere_user}"
+    password   = "${var.vsphere_password}"
+    port       = "${var.vsphere_server_port}"
+    insecure   = "${var.vsphere_allow_unverified_ssl ? 1 : 0}"
+    datacenter = "${var.vsphere_datacenter}"
+    network    = "${var.vsphere_network}"
   }
 }
 
@@ -171,8 +173,8 @@ data "template_file" "ctl_cloud_config" {
     debug = "${var.debug}"
 
     //
-    yakity_sh  = "${base64gzip(local.yakity_sh)}"
     yakity_env = "${base64gzip(data.template_file.yakity_env.*.rendered[count.index])}"
+    yakity_url = "${var.yakity_url}"
     node_type  = "controller"
 
     //
@@ -232,7 +234,7 @@ data "template_file" "wrk_cloud_config" {
 
     //
     yakity_env = "${base64gzip(data.template_file.yakity_env.*.rendered[count.index])}"
-    yakity_sh  = "${base64gzip(local.yakity_sh)}"
+    yakity_url = "${var.yakity_url}"
     node_type  = "worker"
 
     //

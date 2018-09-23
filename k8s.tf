@@ -82,6 +82,9 @@ CLUSTER_NAME="$${k8s_cluster_name}"
 # The FQDN of the K8s cluster.
 CLUSTER_FQDN="$${k8s_cluster_fqdn}"
 
+# The public FQDN of the K8s cluster.
+EXTERNAL_FQDN="$${external_fqdn}"
+
 # The secure port on which the K8s API server is advertised.
 SECURE_PORT=$${k8s_secure_port}
 
@@ -108,9 +111,33 @@ SERVICE_FQDN="$${k8s_service_fqdn}"
 # the service network.
 SERVICE_NAME="$${k8s_service_name}"
 
-INSTALL_CONFORMANCE_TESTS="$${install_conformance_tests}"
+# The log levels for the various kubernetes components.
+LOG_LEVEL_KUBERNETES="$${log_level_kubernetes}"
+LOG_LEVEL_KUBE_APISERVER="$${log_level_kube_apiserver}"
+LOG_LEVEL_KUBE_SCHEDULER="$${log_level_kube_scheduler}"
+LOG_LEVEL_KUBE_CONTROLLER_MANAGER="$${log_level_kube_controller_manager}"
+LOG_LEVEL_KUBELET="$${log_level_kubelet}"
+LOG_LEVEL_KUBE_PROXY="$${log_level_kube_proxy}"
+LOG_LEVEL_CLOUD_CONTROLLER_MANAGER="$${log_level_cloud_controller_manager}"
 
+INSTALL_CONFORMANCE_TESTS="$${install_conformance_tests}"
 RUN_CONFORMANCE_TESTS="$${run_conformance_tests}"
+
+# If defined, each of the following MANIFEST_YAML environment variables
+# are applied from a control plane node with 
+# "echo VAL | kubectl create -f -- -" using the order specified by the 
+# environment variable's name. The manifests are applied exactly once, 
+# no matter the number of control plane nodes.
+#
+# The reason for AFTER_RBAC_1 and AFTER_RBAC_2 is so systems like
+# Terraform that may generate manifests can still participate while
+# not overriding the end-user's values.
+#
+# Each of the values should be gzip'd and base64-encoded.
+MANIFEST_YAML_BEFORE_RBAC="$${manifest_yaml_before_rbac}"
+MANIFEST_YAML_AFTER_RBAC_1="$${manifest_yaml_after_rbac_1}"
+MANIFEST_YAML_AFTER_RBAC_2="$${manifest_yaml_after_rbac_2}"
+MANIFEST_YAML_AFTER_ALL="$${manifest_yaml_after_all}"
 
 # Versions of the software packages installed on the controller and
 # worker nodes. Please note that not all the software packages listed
@@ -153,7 +180,7 @@ EOF
 
     //
     cloud_provider = "${var.cloud_provider}"
-    cloud_config   = "${var.cloud_provider == "external" ? base64gzip(data.template_file.external_cloud_provider_config.rendered) : base64gzip(data.template_file.cloud_provider_config.rendered)}"
+    cloud_config   = "${var.cloud_provider == "external" ? base64gzip(data.template_file.ccm_config.rendered) : base64gzip(data.template_file.cloud_provider_config.rendered)}"
 
     //
     tls_ca_crt = "${base64gzip(local.tls_ca_crt)}"
@@ -164,6 +191,7 @@ EOF
     k8s_cluster_admin    = "${var.cluster_admin}"
     k8s_cluster_cidr     = "${var.cluster_cidr}"
     k8s_cluster_fqdn     = "${local.cluster_fqdn}"
+    external_fqdn        = "${local.external_fqdn}"
     k8s_cluster_name     = "${var.cluster_name}"
     k8s_secure_port      = "${var.api_secure_port}"
     k8s_service_cidr     = "${var.service_cidr}"
@@ -173,6 +201,21 @@ EOF
     k8s_service_fqdn     = "${local.cluster_svc_fqdn}"
     k8s_service_name     = "${local.cluster_svc_name}"
     service_dns_provider = "${var.service_dns_provider}"
+
+    //
+    log_level_kubernetes               = "${var.log_level_kubernetes}"
+    log_level_kube_apiserver           = "${var.log_level_kube_apiserver}"
+    log_level_kube_scheduler           = "${var.log_level_kube_scheduler}"
+    log_level_kube_controller_manager  = "${var.log_level_kube_controller_manager}"
+    log_level_kubelet                  = "${var.log_level_kubelet}"
+    log_level_kube_proxy               = "${var.log_level_kube_proxy}"
+    log_level_cloud_controller_manager = "${var.log_level_cloud_controller_manager}"
+
+    //
+    manifest_yaml_before_rbac  = "${var.manifest_yaml_before_rbac}"
+    manifest_yaml_after_rbac_1 = "${var.manifest_yaml_after_rbac}"
+    manifest_yaml_after_rbac_2 = "${base64gzip(data.template_file.manifest_secrets_yaml.rendered)}"
+    manifest_yaml_after_all    = "${var.manifest_yaml_after_all}"
 
     //
     install_conformance_tests = "${var.install_conformance_tests}"

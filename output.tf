@@ -9,3 +9,7 @@ output "workers" {
 output "etcd" {
   value = "${local.etcd_discovery}"
 }
+
+output "external_fqdn" {
+  value = "${local.external_fqdn}"
+}
