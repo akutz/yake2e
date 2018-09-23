@@ -1,6 +1,7 @@
-# vK8s Conformance
+# yake2e
 This project provides a turn-key solution for running the Kubernetes 
-conformance tests on the VMware vSphere on VMC platform.
+conformance tests on the VMware vSphere on VMC platform. In other words,
+it's **Y**et **A**nother **K**ubernetes **e2e** runner :)
 
 ## Quick Start
 To run the Kubernetes conformance tests follow these steps:
