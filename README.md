@@ -3,7 +3,7 @@ This project provides a turn-key solution for running the Kubernetes
 conformance tests on the VMware vSphere on VMC platform. In other words,
 it's **Y**et **A**nother **K**ubernetes **e2e** runner :)
 
-## Quick Start
+## Quick start
 To run the Kubernetes conformance tests follow these steps:
 
 1. Create a file named `config.env` with Terraform properties that
@@ -65,7 +65,7 @@ $ docker run -it --rm \
 ```
 
 ## Run the e2e tests with an external cloud-provider
-The cluster turned up in the [Quickstart](#quickstart) section is
+The cluster turned up in the [quick start](#quick-start) section is
 deployed with the in-tree vSphere cloud provider. To turn up a cluster
 using the out-of-tree vSphere cloud provider simply modify the third
 step:
