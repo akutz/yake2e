@@ -76,21 +76,24 @@ build: .built
 push: .pushed
 
 up: .built
-	$(DOCKER_RUN) $@ $(NAME)
+	$(DOCKER_RUN) $(NAME) $@
 
 down: .built
-	$(DOCKER_RUN) $@ $(NAME)
+	$(DOCKER_RUN) $(NAME) $@
 
 plan: .built
-	$(DOCKER_RUN) $@ $(NAME)
+	$(DOCKER_RUN) $(NAME) $@
 
 info: up
-	$(DOCKER_RUN) $@ $(NAME) $(OUTPUT)
+	$(DOCKER_RUN) $(NAME) $@ $(OUTPUT)
 
-test: up
-	$(DOCKER_RUN) $@ $(NAME) $(GINKGO_FOCUS)
+test: .built
+	$(DOCKER_RUN) $(NAME) $@ $(GINKGO_FOCUS)
+
+logs: .built
+	$(DOCKER_RUN) $(NAME) $@
 
 sh: .built
-	$(DOCKER_RUN_SH) $@ $(NAME)
+	$(DOCKER_RUN_SH) $(NAME) $@
 
-PHONY: up down plan info test sh
+PHONY: up down plan info test logs sh

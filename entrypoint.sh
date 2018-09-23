@@ -1,15 +1,15 @@
 #!/bin/sh
 
+# posix complaint
+# verified by https://www.shellcheck.net
+
 set -o pipefail
 
 usage() {
   cat <<EOF 1>&2
-usage: ${0} CMD NAME [ARGS...]
+usage: ${0} NAME CMD [ARGS...]
 
 ARGS
-
-  CMD
-    The command to execute.
 
   NAME
     The name of the cluster to deploy. Should be safe
@@ -18,36 +18,31 @@ ARGS
     is being deployed as well as in the context of the
     data directory.
 
+  CMD
+    The command to execute.
+
 COMMANDS
 
-  up NAME
+  up
     Turns up a new cluster
 
-  down NAME
+  down
     Turns down an existing cluster
 
-  plan NAME
+  plan
     A dry-run version of up
 
-  info NAME [OUTPUTS...]
+  info [OUTPUTS...]
     Prints information about an existing cluster.
     If no arguments are provided then all of the
     information is printed.
 
-  test NAME [GINKGO_FOCUS]
-    Runs the e2e conformance suite against an
-    existing cluster. When provided, a single
-    argument can specify the Ginkgo focus string.
-  CMD  The command to execute. Valid commands are:
-       up   - Turns up a new cluster
-       down - Turns down the cluster
-       plan - A dry-run for up
-       info - Prints the state of an existing cluster
-       test - Runs the e2e conformance tests against
-              an existing cluster
-  
-  NAME The name of the cluster against which to
-       execute CMD.
+  test
+    Schedules a job on turned up cluster where the
+    job runs the e2e conformance tests.
+
+  logs
+    Follows the test log.
 EOF
 }
 
@@ -69,11 +64,17 @@ fatal() {
   echo2 "FATAL [${exit_code}] - ${1}"; exit "${exit_code}"
 }
 
+# Define how curl should be used.
+CURL="curl --retry 5 --retry-delay 1 --retry-max-time 120"
+
+################################################################################
+##                                   main                                     ##
+################################################################################
 # Drop out of the script if there aren't at least two args.
 [ "${#}" -lt 2 ] && { usage; fatal "invalid number of arguments" 1; }
 
-CMD="${1}"; shift
 NAME="${1}"; shift
+CMD="${1}"; shift
 
 # Configure the data directory.
 mkdir -p data
@@ -184,69 +185,121 @@ fi
 # Make sure terraform has everything it needs.
 terraform init
 
-E2E_SH="data/${NAME}/e2e.sh"
-if [ ! -f "${E2E_SH}" ]; then
-  cat <<EOF >"${E2E_SH}"
-#!/bin/sh
+setup_kube() {
+  KUBE_DIR="data/${NAME}/.kubernetes/linux_amd64"; mkdir -p "${KUBE_DIR}"
+  export PATH="${KUBE_DIR}:${PATH}"
 
-GINKGO_FOCUS="\${1:-\\[Conformance\\]}"
-GINKGO_SKIP="\${2:-Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]}"
+  if [ -f "${KUBE_DIR}/artifactz.txt" ]; then
+    K8S_ARTIFACT_PREFIX=$(cat "${KUBE_DIR}/artifactz.txt")
+  else
+    EXTERNAL_FQDN=$(terraform output external_fqdn)
+    K8S_ARTIFACT_PREFIX=$(${CURL} "http://${EXTERNAL_FQDN}/artifactz")
+    printf '%s' "${K8S_ARTIFACT_PREFIX}" >"${KUBE_DIR}/artifactz.txt"
+  fi
 
-E2E_DIR="data/${NAME}/e2e"
-E2E_BIN_DIR="\${E2E_DIR}/platforms/linux/amd64"
-E2E_BIN="\${E2E_BIN_DIR}/e2e.test"
-E2E_LOG_DIR="\${E2E_DIR}/log"
-KUBECTL_BIN="\${E2E_BIN_DIR}/kubectl"
+  KUBE_CLIENT_URL="${K8S_ARTIFACT_PREFIX}/kubernetes-client-linux-amd64.tar.gz"
+  if [ ! -f "${KUBE_DIR}/kubectl" ]; then
+    ${CURL} -L "${KUBE_CLIENT_URL}" | tar xzC "${KUBE_DIR}" --strip-components=3
+  fi
 
-EXTERNAL_FQDN="\$(terraform output external_fqdn)"
-E2E_URL="http://\${EXTERNAL_FQDN}/kubernetes-test.tar.gz"
-KUBECTL_URL="http://\${EXTERNAL_FQDN}/kubectl"
-CURL="curl --retry 5 --retry-delay 1 --retry-max-time 120"
+  KUBECTL="kubectl --kubeconfig "data/${NAME}/kubeconfig""
+}
 
-export PATH="\${E2E_BIN_DIR}:\${PATH}"
-export KUBECONFIG="/tf/data/${NAME}/kubeconfig"
+test_logs() {
+  setup_kube || exit
+  while [ -z "${POD_NAME}" ]; do
+    POD_NAME=$(${KUBECTL} get pods --selector=job-name=e2e | \
+               grep Running | awk '{print $1}')
+    [ -n "${POD_NAME}" ] || sleep 1
+  done
+  ${KUBECTL} logs -f "${POD_NAME}" e2e
+}
 
-mkdir -p "\${E2E_DIR}" "\${E2E_LOG_DIR}"
+test_start() {
+  setup_kube || exit
+  KUBE_TEST_URL="${K8S_ARTIFACT_PREFIX}/kubernetes-test.tar.gz"
 
-# Download the e2e package if it doesn't exist.
-if [ ! -f "\${E2E_BIN}" ]; then
-  \${CURL} -L "\${E2E_URL}" | \\
-  tar -xzvC "\${E2E_DIR}" \\
-    --exclude='kubernetes/platforms/darwin' \\
-    --exclude='kubernetes/platforms/windows' \\
-    --exclude='kubernetes/platforms/linux/arm' \\
-    --exclude='kubernetes/platforms/linux/arm64' \\
-    --exclude='kubernetes/platforms/linux/ppc64le' \\
-    --exclude='kubernetes/platforms/linux/s390x' \\
-    --strip-components=1
-    exit_code="\${?}"
-    [ "\${exit_code}" -gt "1" ] && exit "\${exit_code}"
-fi
-
-# Download kubectl if it doesn't exist.
-if [ ! -f "\${KUBECTL_BIN}" ]; then
-  \${CURL} -Lo "\${KUBECTL_BIN}" "\${KUBECTL_URL}" || exit "\${?}"
-  chmod 0755 "\${KUBECTL_BIN}"
-fi
-
-\${E2E_BIN} \\
-  -ginkgo.focus "\${GINKGO_FOCUS}" \\
-  -ginkgo.skip "\${GINKGO_SKIP}" \\
-  -- \\
-  --disable-log-dump \\
-  --report-dir="\${E2E_LOG_DIR}" | 
-  tee "\${E2E_LOG_DIR}/e2e.log"
+  cat <<EOF >"data/${NAME}/test-job-spec.yaml"
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e
+spec:
+  template:
+    spec:
+      volumes:
+      - name: kubernetes
+        emptyDir: {}
+      containers:
+      - name: setup
+        image: centos:7.5.1804
+        volumeMounts:
+        - name: kubernetes
+          mountPath: /var/lib/kubernetes
+        args:
+          - /bin/sh
+          - -c
+          - >
+            echo "\${KUBECONFIG_GZ}" | base64 -d | gzip -d >/var/lib/kubernetes/kubeconfig;
+            ${CURL} ${KUBE_CLIENT_URL} | tar xvzC /var/lib;
+            ${CURL} ${KUBE_TEST_URL} | tar xvzC /var/lib;
+            touch /var/lib/kubernetes/.ready
+        env:
+          - name: KUBECONFIG_GZ
+            value: "$(gzip -9c <"data/${NAME}/kubeconfig" | base64 | tr -d '\n')"
+      - name: e2e
+        image: centos:7.5.1804
+        volumeMounts:
+        - name: kubernetes
+          mountPath: /var/lib/kubernetes
+        args:
+          - /bin/sh
+          - -c
+          - >
+            while [ ! -f /var/lib/kubernetes/.ready ]; do sleep 1; done;
+            /var/lib/kubernetes/platforms/linux/amd64/e2e.test \
+              -ginkgo.focus '\\[Conformance\\]' \
+              -ginkgo.skip 'Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]' \
+              -- \
+              --disable-log-dump \
+              2>&1;
+        env:
+          - name:  KUBECONFIG
+            value: /var/lib/kubernetes/kubeconfig
+          - name:  PATH
+            value: /var/lib/kubernetes/client/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      restartPolicy: Never
+  backoffLimit: 4
 EOF
-  chmod 0755 "${E2E_SH}"
-fi
+
+  ${KUBECTL} create -f "data/${NAME}/test-job-spec.yaml"
+  ${KUBECTL} get pods --selector=job-name=e2e | grep ContainerCreating
+}
 
 case "${CMD}" in
-  plan) exec terraform plan ;;
-  info) exec terraform output "${@}" ;;
-  up)   exec terraform apply -auto-approve ;;
-  down) exec terraform destroy -auto-approve ;;
-  test) exec "${E2E_SH}" "${@}";;
-  sh)   exec /bin/sh ;;
+  plan) 
+    terraform plan
+    ;;
+  info)
+    terraform output "${@}"
+    ;;
+  up)
+    terraform apply -auto-approve
+    ;;
+  down)
+    terraform destroy -auto-approve
+    ;;
+  test)
+    test_start
+    ;;
+  logs)
+    test_logs
+    ;;
+  sh)
+    exec /bin/sh
+    ;;
 esac
 
+exit_code="${?}"
 echo "So long and thanks for all the fish."
+exit "${@}"
