@@ -69,7 +69,8 @@ DOCKER_RUN += $(E2E_IMAGE)
 					entrypoint.sh
 	docker build -t $(E2E_IMAGE) . && touch "$@"
 
-.Dockerfile.job.built: Dockerfile.job
+.Dockerfile.job.built: 	Dockerfile.job \
+						e2e-job.sh
 	docker build -t $(E2E_JOB_IMAGE) -f "$<" . && touch "$@"
 
 build: .Dockerfile.built .Dockerfile.job.built

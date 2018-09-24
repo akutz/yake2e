@@ -12,7 +12,7 @@ FROM alpine:3.8
 LABEL "maintainer" "Andrew Kutz <akutz@vmware.com>"
 
 # Install the common dependencies.
-RUN apk --no-cache add ca-certificates curl
+RUN apk --no-cache add ca-certificates curl tar
 
 # Clean up the alpine cache.
 RUN rm -rf /var/cache/apk/*
@@ -24,17 +24,15 @@ RUN mkdir -p /lib64 && ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.s
 RUN mkdir -p /var/lib/kubernetes
 WORKDIR /var/lib/kubernetes
 
+# Copy the script into the working directory.
+COPY e2e-job.sh /var/lib/kubernetes/e2e.sh
+RUN chmod 0755 /var/lib/kubernetes/e2e.sh
+
 # Define the kubeconfig.
 ENV KUBECONFIG=/etc/kubernetes/kubeconfig
 
-# The default argument list for the entrypoint, the e2e.test binary.
-CMD [ \
-  "-ginkgo.focus", "\\[Conformance\\]", \
-  "-ginkgo.skip",  "Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\\]", \
-  "--", \
-  "--disable-log-dump", \
-  "2>&1" \
-]
+# Place the test binaries into the path.
+ENV PATH=/var/lib/kubernetes/e2e/platforms/linux/amd64:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# The entrypoing for this image is the e2e.test binary.
-ENTRYPOINT [ "/var/lib/kubernetes/e2e/platforms/linux/amd64/e2e.test" ]
+# The entrypoing for this image is the e2e.sh script.
+ENTRYPOINT [ "/var/lib/kubernetes/e2e.sh" ]

@@ -7,16 +7,14 @@ set -o pipefail
 
 usage() {
   cat <<EOF 1>&2
-usage: ${0} NAME CMD [ARGS...]
+usage: yake2e NAME CMD [ARGS...]
 
 ARGS
 
   NAME
-    The name of the cluster to deploy. Should be safe
-    to use as a host and file name. Must be unique
-    in the content of the vCenter to which the cluster
-    is being deployed as well as in the context of the
-    data directory.
+    The name of the cluster to deploy. Should be safe to use as a host and file 
+    name. Must be unique in the content of the vCenter to which the cluster is 
+    being deployed as well as in the context of the data directory.
 
     If TF_VAR_cloud_provider=external then "-ccm" is
     appended to whatever name is provided.
@@ -36,16 +34,20 @@ COMMANDS
     A dry-run version of up
 
   info [OUTPUTS...]
-    Prints information about an existing cluster.
-    If no arguments are provided then all of the
-    information is printed.
+    Prints information about an existing cluster. If no arguments are provided 
+    then all of the information is printed.
 
   test
-    Schedules a job on turned up cluster where the
-    job runs the e2e conformance tests.
+    Schedules the e2e conformance tests as a job.
 
-  logs
+  tdel
+    Delete the e2e conformance tests job.
+
+  tlog
     Follows the test log.
+
+  tget
+    Blocks until the tests have completed and then downloads the test artifacts.
 EOF
 }
 
@@ -238,17 +240,42 @@ setup_kube() {
   KUBECTL="kubectl --kubeconfig "data/${NAME}/kubeconfig" -n e2e"
 }
 
-test_logs() {
+setup_test_pod_name() {
   setup_kube || exit
 
-  # Keep tryin to get the name of the e2e pod until it is running.
-  while [ -z "${pod_name}" ]; do
-    pod_name=$(${KUBECTL} get pods | grep Running | awk '{print $1}')
-    [ -n "${pod_name}" ] || sleep 1
+  # Keep trying to get the name of the e2e pod.
+  echo "getting the name of the e2e pod"
+  i=0; while true; do
+    [ "${i}" -ge "5" ] && fatal "failed to get e2e pod" 1
+    pod_name=$(${KUBECTL} get pods | grep 'Running\|Completed' | awk '{print $1}')
+    [ -n "${pod_name}" ] && return 0
+    sleep 1; i=$((i+1))
   done
+}
+
+test_logs() {
+  setup_test_pod_name || exit
 
   # Tail the logs of the e2e job's pod.
-  ${KUBECTL} logs -f "${pod_name}" || fatal "failed to tail e2e log"
+  ${KUBECTL} logs -f "${pod_name}" run || fatal "failed to tail e2e log"
+}
+
+test_tgz() {
+  setup_test_pod_name || exit
+
+  # Save the results to the data directory.
+  ${KUBECTL} logs -f "${pod_name}" tgz | \
+    base64 -d >"data/${NAME}/e2e-logs.tar.gz" || \
+    fatal "failed to tail e2e log"
+
+  echo "saved test artifacts to data/${NAME}/e2e-logs.tar.gz"
+}
+
+test_delete() {
+  setup_kube || exit
+
+  # Delete the test job.
+  ${KUBECTL} delete jobs e2e || fatal "failed to delete e2e job"
 }
 
 test_start() {
@@ -284,8 +311,14 @@ case "${CMD}" in
   test)
     test_start
     ;;
-  logs)
+  tdel)
+    test_delete
+    ;;
+  tlog)
     test_logs
+    ;;
+  tget)
+    test_tgz
     ;;
   sh)
     exec /bin/sh
