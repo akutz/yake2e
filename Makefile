@@ -66,7 +66,8 @@ DOCKER_RUN += $(E2E_IMAGE)
 .Dockerfile.built: 	Dockerfile \
 					*.tf vmc/*.tf \
 					cloud_config.yaml \
-					entrypoint.sh
+					entrypoint.sh \
+					upload_e2e.py
 	docker build -t $(E2E_IMAGE) . && touch "$@"
 
 .Dockerfile.job.built: 	Dockerfile.job \

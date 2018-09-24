@@ -44,10 +44,31 @@ COMMANDS
     Delete the e2e conformance tests job.
 
   tlog
-    Follows the test log.
+    Follows the test job in real time.
 
-  tget
-    Blocks until the tests have completed and then downloads the test artifacts.
+  tget [RESULTS_DIR]
+    Blocks until the test job has completed and then downloads the test
+    artifacts from the test job. This command has one optional argument:
+    
+      RESULTS_DIR  OPTIONAL The path to which the test results are saved.
+
+                   The default value is data/NAME/e2e.
+
+  tput GCS_PATH KEY_FILE [RESULTS_DIR]
+    Blocks until the test job has completed, downloads the test artifacts from
+    the test job, and then processes and uploads the test artifacts to a GCS
+    bucket.
+
+    Please note this command takes the following arguments:
+
+      GCS_PATH     The path to the GCS bucket and directory to which to write
+                   the processed test artifacts.
+
+      KEY_FILE     A Google Cloud key that has write permissions for GCS_PATH.
+
+      RESULTS_DIR  OPTIONAL The path to which the test results are saved.
+
+                   The default value is data/NAME/e2e.
 EOF
 }
 
@@ -76,14 +97,10 @@ CURL="curl --retry 5 --retry-delay 1 --retry-max-time 120"
 ##                                   main                                     ##
 ################################################################################
 # Drop out of the script if there aren't at least two args.
-[ "${#}" -lt 2 ] && { usage; fatal "invalid number of arguments" 1; }
+[ "${#}" -lt 2 ] && { echo2 "incorrect number of argumenmts"; usage; exit 1; }
 
 NAME="${1}"; shift
 CMD="${1}"; shift
-
-# If TF_VAR_cloud_provider=external then NAME=${NAME}-ccm to reflect
-# the use of an external cloud provider.
-old_name="${NAME}"
 
 # The warning (SC2154) for TF_VARTF_VAR_cloud_provider not being assigned
 # is disabled since the environment variable is defined externally.
@@ -92,6 +109,7 @@ old_name="${NAME}"
 if [ "${TF_VAR_cloud_provider}" = "external" ]; then
   NAME_PREFIX="ccm"
 fi
+old_name="${NAME}"
 NAME_PREFIX="${NAME_PREFIX:-k8s}"
 NAME="${NAME_PREFIX}-${NAME}"
 echo "${old_name} is now ${NAME}"
@@ -143,9 +161,9 @@ if [ -z "${TF_VAR_tls_ca_crt}" ] || [ -z "${TF_VAR_tls_ca_key}" ]; then
   echo "one-time TLS CA generation enabled"
 fi
 
-# If no yakity URL is defined, there's a gist authentication file at 
-# /root/.gist, and there's a yakity source at /tmp/yakity.sh, then upload 
-# the yakity script to a gist so the local yakity script is consumeable 
+# If no yakity URL is defined, there's a gist authentication file at
+# /root/.gist, and there's a yakity source at /tmp/yakity.sh, then upload
+# the yakity script to a gist so the local yakity script is consumeable
 # by Terraform's http provider.
 if [ -z "${TF_VAR_yakity_url}" ] && \
    [ -f /root/.gist ] && [ -f /tmp/yakity.sh ]; then
@@ -253,22 +271,50 @@ setup_test_pod_name() {
   done
 }
 
-test_logs() {
+test_log() {
   setup_test_pod_name || exit
 
   # Tail the logs of the e2e job's pod.
   ${KUBECTL} logs -f "${pod_name}" run || fatal "failed to tail e2e log"
 }
 
-test_tgz() {
+test_get() {
+  E2E_RESULTS_DIR="${1:-data/${NAME}/e2e}"
+
   setup_test_pod_name || exit
 
-  # Save the results to the data directory.
   ${KUBECTL} logs -f "${pod_name}" tgz | \
-    base64 -d >"data/${NAME}/e2e-logs.tar.gz" || \
-    fatal "failed to tail e2e log"
+    base64 -d >"data/${NAME}/e2e-results.tar.gz" || \
+    fatal "failed download the e2e test results"
 
-  echo "saved test artifacts to data/${NAME}/e2e-logs.tar.gz"
+  mkdir -p "${E2E_RESULTS_DIR}"
+  tar xzf "data/${NAME}/e2e-results.tar.gz" -C "${E2E_RESULTS_DIR}" || \
+    fatal "failed to inflate the e2e test results"
+
+  echo "test results saved to ${E2E_RESULTS_DIR}"
+}
+
+test_put() {
+  # Drop out of the script if there aren't at least two args.
+  [ "${#}" -lt 2 ] && { echo2 "incorrect number of argumenmts"; usage; exit 1; }
+
+  GCS_PATH="${1}"; shift
+  KEY_FILE="${1}"; shift
+  E2E_RESULTS_DIR="${1:-data/${NAME}/e2e}"; shift
+  
+  # Ensure the key file exists.
+  [ -f "${KEY_FILE}" ] || fatal "GCS key file ${KEY_FILE} does not exist" 1
+
+  # Ensure the test results exist.
+  [ -f "${E2E_RESULTS_DIR}/e2e.log" ] || fatal "missing test results" 1
+
+  ./upload_e2e.py --bucket   "${GCS_PATH}" \
+                  --junit    "${E2E_RESULTS_DIR}/"'junit*.xml' \
+                  --log      "${E2E_RESULTS_DIR}/e2e.log" \
+                  --key-file "${KEY_FILE}" || \
+    fatal "failed to upload the e2e test results"
+
+  echo "test results uploaded to GCS"
 }
 
 test_delete() {
@@ -295,6 +341,26 @@ test_start() {
     fatal "failed to get e2e pod"
 }
 
+turn_up() {
+  terraform apply -auto-approve || \
+    fatal "failed to turn up cluster"
+
+  # Get the external FQDN of the cluster from the Terraform output cache.
+  ext_fqdn=$(terraform output external_fqdn) || \
+    fatal "failed to read external fqdn"
+
+  printf "waiting for cluster to finish coming online... "
+  while true; do
+    if [ "ok" = "$(curl "http://${ext_fqdn}/healthz" 2>/dev/null)" ]; then
+      echo; break;
+    fi
+    printf "."
+    sleep 1
+  done
+
+  echo "cluster online"
+}
+
 case "${CMD}" in
   plan) 
     terraform plan
@@ -303,7 +369,7 @@ case "${CMD}" in
     terraform output "${@}"
     ;;
   up)
-    terraform apply -auto-approve
+    turn_up
     ;;
   down)
     terraform destroy -auto-approve
@@ -315,16 +381,22 @@ case "${CMD}" in
     test_delete
     ;;
   tlog)
-    test_logs
+    test_log
     ;;
   tget)
-    test_tgz
+    test_get "${@}"
+    ;;
+  tput)
+    test_put "${@}"
     ;;
   sh)
     exec /bin/sh
+    ;;
+  *)
+    echo2 "invalid command"; usage; exit 1
     ;;
 esac
 
 exit_code="${?}"
 echo "So long and thanks for all the fish."
-exit "${@}"
+exit "${exit_code}"

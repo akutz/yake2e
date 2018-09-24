@@ -82,9 +82,9 @@ $ docker run -it --rm \
 
 Beyond that all the other steps are the same.
 
-## Download the e2e test artifacts
+## Download the e2e test results
 The following command will block until the e2e tests have completed
-and then download the test artifacts as a tarball:
+and then download the test results as a tarball:
 
 ```shell
 $ docker run -it --rm \
@@ -93,6 +93,19 @@ $ docker run -it --rm \
   --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable tget
+```
+
+## Upload the e2e test results to GCS
+After using `tget`, the following command will upload the test results
+to a GCS bucket:
+
+```shell
+$ docker run -it --rm \
+  -v "$(pwd)/data":/tf/data \
+  --env-file config.env \
+  --env-file secure.env \
+  gcr.io/kubernetes-conformance-testing/yake2e \
+  stable tput gs://path-to-bucket google-cloud-key-file.json
 ```
 
 ## Stop the e2e test
