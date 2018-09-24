@@ -51,7 +51,7 @@ $ docker run -it --rm \
   --env-file config.env \
   --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
-  stable logs
+  stable tlog
 ```
 
 6. Turn down the cluster:
@@ -81,3 +81,28 @@ $ docker run -it --rm \
 ```
 
 Beyond that all the other steps are the same.
+
+## Download the e2e test artifacts
+The following command will block until the e2e tests have completed
+and then download the test artifacts as a tarball:
+
+```shell
+$ docker run -it --rm \
+  -v "$(pwd)/data":/tf/data \
+  --env-file config.env \
+  --env-file secure.env \
+  gcr.io/kubernetes-conformance-testing/yake2e \
+  stable tget
+```
+
+## Stop the e2e test
+The following command stops any in-progress e2e test job:
+
+```shell
+$ docker run -it --rm \
+  -v "$(pwd)/data":/tf/data \
+  --env-file config.env \
+  --env-file secure.env \
+  gcr.io/kubernetes-conformance-testing/yake2e \
+  stable tdel
+```
