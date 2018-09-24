@@ -38,8 +38,6 @@ $ docker run -it --rm \
 ```shell
 $ docker run -it --rm \
   -v "$(pwd)/data":/tf/data \
-  --env-file config.env \
-  --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable test
 ```
@@ -48,8 +46,6 @@ $ docker run -it --rm \
 ```shell
 $ docker run -it --rm \
   -v "$(pwd)/data":/tf/data \
-  --env-file config.env \
-  --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable tlog
 ```
@@ -89,8 +85,6 @@ and then download the test results as a tarball:
 ```shell
 $ docker run -it --rm \
   -v "$(pwd)/data":/tf/data \
-  --env-file config.env \
-  --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable tget
 ```
@@ -102,8 +96,6 @@ to a GCS bucket:
 ```shell
 $ docker run -it --rm \
   -v "$(pwd)/data":/tf/data \
-  --env-file config.env \
-  --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable tput gs://path-to-bucket google-cloud-key-file.json
 ```
@@ -114,8 +106,6 @@ The following command stops any in-progress e2e test job:
 ```shell
 $ docker run -it --rm \
   -v "$(pwd)/data":/tf/data \
-  --env-file config.env \
-  --env-file secure.env \
   gcr.io/kubernetes-conformance-testing/yake2e \
   stable tdel
 ```
