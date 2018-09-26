@@ -10,7 +10,7 @@ GINKGO_SKIP="${GINKGO_SKIP:-Alpha|Kubectl|\\[(Disruptive|Feature:[^\\]]+|Flaky)\
 
 case "${1}" in
   run)
-    /var/lib/kubernetes/e2e/platforms/linux/amd64/e2e.test \
+    ./keepalive -- /var/lib/kubernetes/e2e/platforms/linux/amd64/e2e.test \
       -ginkgo.focus "${GINKGO_FOCUS}" \
       -ginkgo.skip "${GINKGO_SKIP}" \
       -disable-log-dump \

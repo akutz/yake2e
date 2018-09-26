@@ -28,6 +28,10 @@ WORKDIR /var/lib/kubernetes
 COPY e2e-job.sh /var/lib/kubernetes/e2e.sh
 RUN chmod 0755 /var/lib/kubernetes/e2e.sh
 
+# Copy the keepalive program into the working directory.
+COPY hack/keepalive/keepalive.linux_amd64 /var/lib/kubernetes/keepalive
+RUN chmod 0755 /var/lib/kubernetes/keepalive
+
 # Define the kubeconfig.
 ENV KUBECONFIG=/etc/kubernetes/kubeconfig
 

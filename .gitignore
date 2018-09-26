@@ -4,7 +4,11 @@
 # Ignore scratch files.
 /vprep.sh
 /scratch.txt
-/hack/
+/hack/*.tar.gz
+/hack/crio*
+/hack/Dockerfile*
+/hack/*.sh
+/hack/Makefile
 
 # Ignore the private TLS files
 *.crt

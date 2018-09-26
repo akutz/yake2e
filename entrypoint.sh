@@ -69,6 +69,9 @@ COMMANDS
       RESULTS_DIR  OPTIONAL The path to which the test results are saved.
 
                    The default value is data/NAME/e2e.
+
+  version
+    Prints the client and server version of Kubernetes.
 EOF
 }
 
@@ -118,15 +121,18 @@ echo "${old_name} is now ${NAME}"
 mkdir -p data
 sed -i 's~data/terraform.state~data/'"${NAME}"'/terraform.state~g' data.tf
 export TF_VAR_name="${NAME}"
-export TF_VAR_ctl_vm_name="c%02d"
-export TF_VAR_wrk_vm_name="w%02d"
+export TF_VAR_ctl_vm_name="c%02d-${NAME}"
+export TF_VAR_wrk_vm_name="w%02d-${NAME}"
 export TF_VAR_ctl_network_hostname="${TF_VAR_ctl_vm_name}"
 export TF_VAR_wrk_network_hostname="${TF_VAR_wrk_vm_name}"
 
 # If any of the AWS access keys are missing then exit the script.
+EXTERNAL=false
 if [ -n "${AWS_ACCESS_KEY_ID}" ] && \
   [ -n "${AWS_SECRET_ACCESS_KEY}" ] && \
   [ -n "${AWS_DEFAULT_REGION}" ]; then
+
+  EXTERNAL=true
 
   # Copy the providers into the project.
   cp -f vmc/providers_aws.tf vmc/providers_local.tf vmc/providers_tls.tf .
@@ -258,34 +264,40 @@ setup_kube() {
   KUBECTL="kubectl --kubeconfig "data/${NAME}/kubeconfig" -n e2e"
 }
 
-setup_test_pod_name() {
-  setup_kube || exit
-
-  # Keep trying to get the name of the e2e pod.
-  echo "getting the name of the e2e pod"
+get_test_pod_name() {
+  printf "getting the name of the e2e pod... "
   i=0; while true; do
-    [ "${i}" -ge "5" ] && fatal "failed to get e2e pod" 1
-    pod_name=$(${KUBECTL} get pods | grep 'Running\|Completed' | awk '{print $1}')
-    [ -n "${pod_name}" ] && return 0
-    sleep 1; i=$((i+1))
+    [ "${i}" -ge "100" ] && fatal "failed to get e2e pod" 1
+    pod_name=$(${KUBECTL} get pods --no-headers | awk '{print $1}')
+    [ -n "${pod_name}" ] && echo "${pod_name}" && return 0
+    printf "."
+    sleep 3; i=$((i+1))
   done
 }
 
 test_log() {
-  setup_test_pod_name || exit
-
-  # Tail the logs of the e2e job's pod.
+  setup_kube; get_test_pod_name
+  echo "waiting for the log to have data"
+  i=0; while true; do
+    [ "${i}" -ge "100" ] && fatal "failed to get tail e2e log" 1
+    if b1=$(${KUBECTL} logs --limit-bytes 1 "${pod_name}" run); then
+      [ -n "${b1}" ] && echo "${pod_name} has log data" && break
+    fi
+    printf "."
+    sleep 3; i=$((i+1))
+  done
   ${KUBECTL} logs -f "${pod_name}" run || fatal "failed to tail e2e log"
 }
 
 test_get() {
+  setup_kube; get_test_pod_name
+
   E2E_RESULTS_DIR="${1:-data/${NAME}/e2e}"
 
-  setup_test_pod_name || exit
-
-  ${KUBECTL} logs -f "${pod_name}" tgz | \
+  ${KUBECTL} logs "${pod_name}" tgz | \
     base64 -d >"data/${NAME}/e2e-results.tar.gz" || \
     fatal "failed download the e2e test results"
+  echo "downloaded the e2e test results"
 
   mkdir -p "${E2E_RESULTS_DIR}"
   tar xzf "data/${NAME}/e2e-results.tar.gz" -C "${E2E_RESULTS_DIR}" || \
@@ -318,47 +330,77 @@ test_put() {
 }
 
 test_delete() {
-  setup_kube || exit
-
-  # Delete the test job.
+  setup_kube
   ${KUBECTL} delete jobs e2e || fatal "failed to delete e2e job"
 }
 
 test_start() {
-  setup_kube || exit
+  setup_kube
+
+  # If there's an e2e job spec in the data directy then use that.
+  if [ -f "data/e2e-job.yaml" ]; then
+    echo "using e2e job spec from data/e2e-job.yaml"
+    cp "data/e2e-job.yaml" "data/${NAME}"
+  fi
 
   # If the e2e job spec is not cached then download it from the cluster.
-  [ -f "data/${NAME}/e2e-job.yaml" ] || \
+  if [ ! -f "data/${NAME}/e2e-job.yaml" ]; then
+    echo "downloading e2e job spec from http://${ext_fqdn}/e2e/job.yaml"
+    printf "waiting for e2e job spec to become available... "
+    i=0 && while true; do
+      [ "${i}" -ge 100 ] && fatal "timed out waiting for e2e job spec" 1
+      ${CURL} -I "http://${ext_fqdn}/e2e/job.yaml" | \
+        grep -qF 'HTTP/1.1 200 OK' && echo "ok" && break
+      printf "."
+      sleep 3
+      i=$((i+1))
+    done
+
     ${CURL} "http://${ext_fqdn}/e2e/job.yaml" >"data/${NAME}/e2e-job.yaml" || \
-    fatal "failed to download e2e job spec"
+      fatal "failed to download e2e job spec"
+  fi
+
+  printf "waiting for e2e namespace... "
+  i=0 && while true; do
+    [ "${i}" -ge 100 ] && fatal "timed out waiting for e2e namespace" 1
+    kubectl --kubeconfig "data/${NAME}/kubeconfig" get namespaces | \
+      grep -q e2e && echo "ok" && break
+    printf "."
+    sleep 3
+    i=$((i+1))
+  done
 
   # Create the e2e job.
   ${KUBECTL} create -f "data/${NAME}/e2e-job.yaml" || \
     fatal "failed to create e2e job"
 
   # Get the name of the pod created for the e2e job.
-  ${KUBECTL} get pods | grep -v Terminating || \
-    fatal "failed to get e2e pod"
+  get_test_pod_name
+}
+
+version() {
+  kubectl --kubeconfig "data/${NAME}/kubeconfig" version || true
 }
 
 turn_up() {
   terraform apply -auto-approve || \
     fatal "failed to turn up cluster"
 
-  # Get the external FQDN of the cluster from the Terraform output cache.
-  ext_fqdn=$(terraform output external_fqdn) || \
-    fatal "failed to read external fqdn"
+  if [ "${EXTERNAL}" = "true" ]; then
+    # Get the external FQDN of the cluster from the Terraform output cache.
+    ext_fqdn=$(terraform output external_fqdn) || \
+      fatal "failed to read external fqdn"
 
-  printf "waiting for cluster to finish coming online... "
-  while true; do
-    if [ "ok" = "$(curl "http://${ext_fqdn}/healthz" 2>/dev/null)" ]; then
-      echo; break;
-    fi
-    printf "."
-    sleep 1
-  done
-
-  echo "cluster online"
+    printf "waiting for cluster to finish coming online... "
+    i=0 && while true; do
+      [ "${i}" -ge 100 ] && fatal "timed out waiting for cluster to come online" 1
+      [ "ok" = "$(${CURL} "http://${ext_fqdn}/healthz" 2>/dev/null)" ] && \
+        echo "ok" && break
+      printf "."
+      sleep 3
+      i=$((i+1))
+    done
+  fi
 }
 
 case "${CMD}" in
@@ -388,6 +430,9 @@ case "${CMD}" in
     ;;
   tput)
     test_put "${@}"
+    ;;
+  version)
+    version
     ;;
   sh)
     exec /bin/sh

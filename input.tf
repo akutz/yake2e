@@ -167,9 +167,15 @@ variable "api_secure_port" {
   default = "443"
 }
 
+// The number of control-plane nodes that support scheduling workloads.
+// In other words, a node that's both a controller *and* a worker.
+variable "bth_count" {
+  default = "3"
+}
+
 // The number of controller nodes
 variable "ctl_count" {
-  default = "2"
+  default = "0"
 }
 
 // The number of worker nodes
