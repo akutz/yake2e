@@ -16,10 +16,8 @@ case "${1}" in
       -disable-log-dump \
       -provider "skeleton" \
       -report-dir "/var/log/kubernetes/e2e" \
-      2>&1 | tee /var/log/kubernetes/e2e/e2e.log
-    exit_code="${?}"
+      2>&1 | tee /var/log/kubernetes/e2e/e2e.log || true
     touch /var/log/kubernetes/e2e/.done
-    exit "${exit_code}"
     ;;
   tgz)
     while [ ! -f /var/log/kubernetes/e2e/.done ]; do sleep 1; done
