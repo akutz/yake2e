@@ -286,9 +286,11 @@ test_log() {
     printf "."
     sleep 3; i=$((i+1))
   done
+  echo "tailing e2e log"
   i=0; while true; do
     [ "${i}" -ge "100" ] && fatal "failed to tail e2e log" 1
     ${KUBECTL} logs -f "${pod_name}" && break
+    echo "."
     sleep 3; i=$((i+1))
   done
 }
