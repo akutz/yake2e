@@ -123,8 +123,8 @@ sed -i 's~data/terraform.state~data/'"${NAME}"'/terraform.state~g' data.tf
 export TF_VAR_name="${NAME}"
 export TF_VAR_ctl_vm_name="c%02d-${NAME}"
 export TF_VAR_wrk_vm_name="w%02d-${NAME}"
-export TF_VAR_ctl_network_hostname="${TF_VAR_ctl_vm_name}"
-export TF_VAR_wrk_network_hostname="${TF_VAR_wrk_vm_name}"
+export TF_VAR_ctl_network_hostname="c%02d"
+export TF_VAR_wrk_network_hostname="w%02d"
 
 # If any of the AWS access keys are missing then exit the script.
 EXTERNAL=false
@@ -344,10 +344,10 @@ test_start() {
   setup_kube
 
   # If there's an e2e job spec in the data directy then use that.
-  if [ -f "data/e2e-job.yaml" ]; then
-    echo "using e2e job spec from data/e2e-job.yaml"
-    cp "data/e2e-job.yaml" "data/${NAME}"
-  fi
+  #if [ -f "data/e2e-job.yaml" ]; then
+  #  echo "using e2e job spec from data/e2e-job.yaml"
+  #  cp "data/e2e-job.yaml" "data/${NAME}"
+  #fi
 
   # If the e2e job spec is not cached then download it from the cluster.
   if [ ! -f "data/${NAME}/e2e-job.yaml" ]; then
