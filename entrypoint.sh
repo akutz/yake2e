@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# posix complaint
+# posix compliant
 # verified by https://www.shellcheck.net
 
 set -o pipefail
@@ -403,45 +403,51 @@ turn_up() {
   fi
 }
 
-case "${CMD}" in
-  plan) 
-    terraform plan
-    ;;
-  info)
-    terraform output "${@}"
-    ;;
-  up)
-    turn_up
-    ;;
-  down)
-    terraform destroy -auto-approve
-    ;;
-  test)
-    test_start
-    ;;
-  tdel)
-    test_delete
-    ;;
-  tlog)
-    test_log
-    ;;
-  tget)
-    test_get "${@}"
-    ;;
-  tput)
-    test_put "${@}"
-    ;;
-  version)
-    version
-    ;;
-  sh)
-    exec /bin/sh
-    ;;
-  *)
-    echo2 "invalid command"; usage; exit 1
-    ;;
-esac
+# shellcheck disable=SC2154
+if [ -n "${TF_VAR_k8s_version}" ] && [ -n "${SKIP_K8S_VERSIONS}" ] && \
+  echo "${TF_VAR_k8s_version}" | grep -qF "${SKIP_K8S_VERSIONS}"; then
+  echo "skipping K8s ${TF_VAR_k8s_version}"
+else
+  case "${CMD}" in
+    plan)
+      terraform plan
+      ;;
+    info)
+      terraform output "${@}"
+      ;;
+    up)
+      turn_up
+      ;;
+    down)
+      terraform destroy -auto-approve
+      ;;
+    test)
+      test_start
+      ;;
+    tdel)
+      test_delete
+      ;;
+    tlog)
+      test_log
+      ;;
+    tget)
+      test_get "${@}"
+      ;;
+    tput)
+      test_put "${@}"
+      ;;
+    version)
+      version
+      ;;
+    sh)
+      exec /bin/sh
+      ;;
+    *)
+      echo2 "invalid command"; usage; exit 1
+      ;;
+  esac
+  exit_code="${?}"
+fi
 
-exit_code="${?}"
 echo "So long and thanks for all the fish."
-exit "${exit_code}"
+exit "${exit_code:-0}"

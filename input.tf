@@ -174,7 +174,7 @@ variable "ctl_count" {
 
 // The number of worker nodes
 variable "wrk_count" {
-  default = "2"
+  default = "4"
 }
 
 variable "cluster_admin" {
@@ -394,8 +394,11 @@ variable "cni_plugins_version" {
 
 // https://github.com/containerd/containerd/releases
 variable "containerd_version" {
-  //default = "1.1.0"
-  default = "1.2.0-beta.2"
+  default = "1.1.4"
+}
+
+variable "containerd12_version" {
+  default = "1.2.0-rc.0"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
