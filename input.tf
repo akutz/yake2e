@@ -174,7 +174,7 @@ variable "ctl_count" {
 
 // The number of worker nodes
 variable "wrk_count" {
-  default = "4"
+  default = "3"
 }
 
 variable "cluster_admin" {
