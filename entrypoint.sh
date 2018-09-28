@@ -279,14 +279,18 @@ test_log() {
   setup_kube; get_test_pod_name
   echo "waiting for the log to have data"
   i=0; while true; do
-    [ "${i}" -ge "100" ] && fatal "failed to get tail e2e log" 1
+    [ "${i}" -ge "100" ] && fatal "failed to get e2e log data" 1
     if b1=$(${KUBECTL} logs --limit-bytes 1 "${pod_name}" run); then
       [ -n "${b1}" ] && echo "${pod_name} has log data" && break
     fi
     printf "."
     sleep 3; i=$((i+1))
   done
-  ${KUBECTL} logs -f "${pod_name}" run || fatal "failed to tail e2e log"
+  i=0; while true; do
+    [ "${i}" -ge "100" ] && fatal "failed to tail e2e log" 1
+    ${KUBECTL} logs -f "${pod_name}" && break
+    sleep 3; i=$((i+1))
+  done
 }
 
 test_get() {
