@@ -12,11 +12,11 @@ case "${1}" in
   run)
     ./keepalive -- /var/lib/kubernetes/platforms/linux/amd64/e2e.test \
       -disable-log-dump \
-      -ginkgo.focus "${GINKGO_FOCUS}" \
-      -ginkgo.skip  "${GINKGO_SKIP}" \
-      -provider=skeleton \
-      -repo-root=/var/lib/kubernetes \
-      -report-dir=/var/log/kubernetes/e2e \
+      -ginkgo.focus      "${GINKGO_FOCUS}" \
+      -ginkgo.skip       "${GINKGO_SKIP}" \
+      -provider          skeleton \
+      -repo-root         /var/lib/kubernetes \
+      -report-dir        /var/log/kubernetes/e2e \
       2>&1 | tee /var/log/kubernetes/e2e/e2e.log || true
     touch /var/log/kubernetes/e2e/.done
     ;;
