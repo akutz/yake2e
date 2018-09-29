@@ -43,7 +43,7 @@ variable "os_seed_gid" {
 // If var.yakity and var.yakity_file are not set then the script is fetched 
 // from the following URL.
 variable "yakity_url" {
-  default = "https://raw.githubusercontent.com/akutz/yakity/master/yakity.sh"
+  default = "https://raw.githubusercontent.com/akutz/yakity/v0.1.0/yakity.sh"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
