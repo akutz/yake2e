@@ -18,4 +18,4 @@ runcmd:
   - mkdir -p /opt/bin
   - curl -sSL -o /opt/bin/yakity.sh ${yakity_url}
   - chmod 0755 /opt/bin/yakity.sh
-  - /opt/bin/yakity.sh ${node_type}
+  - /opt/bin/yakity.sh ${node_type} 2>&1 | tee /var/log/yakity.log

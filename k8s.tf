@@ -36,6 +36,7 @@ data "template_file" "yakity_env" {
 
   template = <<EOF
 DEBUG="$${debug}"
+LOG_LEVEL="$${log_level}"
 
 # Information about the host's network.
 NETWORK_DOMAIN="$${network_domain}"
@@ -151,7 +152,6 @@ COREDNS_VERSION="$${coredns_version}"
 CRICTL_VERSION="$${crictl_version}"
 ETCD_VERSION="$${etcd_version}"
 JQ_VERSION="$${jq_version}"
-VERSION="$${k8s_version}"
 NGINX_VERSION="$${nginx_version}"
 RUNC_VERSION="$${runc_version}"
 RUNSC_VERSION="$${runsc_version}"
@@ -203,6 +203,7 @@ EOF
     service_dns_provider = "${var.service_dns_provider}"
 
     //
+    log_level                          = "${var.log_level}"
     log_level_kubernetes               = "${var.log_level_kubernetes}"
     log_level_kube_apiserver           = "${var.log_level_kube_apiserver}"
     log_level_kube_scheduler           = "${var.log_level_kube_scheduler}"

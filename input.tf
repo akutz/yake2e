@@ -12,6 +12,12 @@ variable "debug" {
   default = "false"
 }
 
+// Set the log level at which the yakity script is executed. Valid values
+// include: fatal, warn, error, info, debug.
+variable "log_level" {
+  default = "info"
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                 Guest OS                                   //
 ////////////////////////////////////////////////////////////////////////////////
