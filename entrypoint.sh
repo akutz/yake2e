@@ -123,10 +123,10 @@ sed -i 's~data/terraform.state~data/'"${NAME}"'/terraform.state~g' data.tf
 export TF_VAR_name="${NAME}"
 export TF_VAR_ctl_vm_name="c%02d-${NAME}"
 export TF_VAR_wrk_vm_name="w%02d-${NAME}"
-#export TF_VAR_ctl_network_hostname="c%02d"
-#export TF_VAR_wrk_network_hostname="w%02d"
-export TF_VAR_ctl_network_hostname="${TF_VAR_ctl_vm_name}"
-export TF_VAR_wrk_network_hostname="${TF_VAR_wrk_vm_name}"
+export TF_VAR_ctl_network_hostname="c%02d"
+export TF_VAR_wrk_network_hostname="w%02d"
+#export TF_VAR_ctl_network_hostname="${TF_VAR_ctl_vm_name}"
+#export TF_VAR_wrk_network_hostname="${TF_VAR_wrk_vm_name}"
 
 # If any of the AWS access keys are missing then exit the script.
 EXTERNAL=false
