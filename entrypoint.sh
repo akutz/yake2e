@@ -132,7 +132,8 @@ export TF_VAR_wrk_network_hostname="w%02d"
 EXTERNAL=false
 if [ -n "${AWS_ACCESS_KEY_ID}" ] && \
   [ -n "${AWS_SECRET_ACCESS_KEY}" ] && \
-  [ -n "${AWS_DEFAULT_REGION}" ]; then
+  [ -n "${AWS_DEFAULT_REGION}" ] && \
+  [ ! "${AWS_LB}" = "false" ]; then
 
   EXTERNAL=true
 

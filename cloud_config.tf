@@ -175,7 +175,10 @@ data "template_file" "ctl_cloud_config" {
     //
     yakity_env = "${base64gzip(data.template_file.yakity_env.*.rendered[count.index])}"
     yakity_url = "${var.yakity_url}"
-    node_type  = "controller"
+
+    // If the count.index >= the number of controller nodes that are able to
+    // schedule workloads then set the node_type="both".
+    node_type  = "${var.bth_count > 0 && count.index < var.bth_count ? "both" : "controller"}"
 
     //
     users = "${join("\n", data.template_file.cloud_users.*.rendered)}"

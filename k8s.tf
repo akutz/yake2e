@@ -37,6 +37,7 @@ data "template_file" "yakity_env" {
   template = <<EOF
 DEBUG="$${debug}"
 LOG_LEVEL="$${log_level}"
+NODE_TYPE="$${node_type}"
 
 # Information about the host's network.
 NETWORK_DOMAIN="$${network_domain}"
@@ -160,6 +161,11 @@ EOF
   vars {
     //
     debug = "${var.debug}"
+
+    // If there are controllers and the count index is less than the number of
+    //  controller nodes, then check to see if the node type is "controller" or
+    // "both". Otherwise the node type is "worker".
+    node_type = "${var.ctl_count > 0 && count.index < var.ctl_count ? var.bth_count > 0 && count.index < var.bth_count ? "both" : "controller" : "worker"}"
 
     //
     network_domain           = "${var.network_domain}"

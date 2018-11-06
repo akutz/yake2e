@@ -73,9 +73,9 @@ resource "vsphere_virtual_machine" "controller" {
   resource_pool_id     = "${vsphere_resource_pool.resource_pool.id}"
   guest_id             = "${data.vsphere_virtual_machine.template.guest_id}"
   scsi_type            = "${data.vsphere_virtual_machine.template.scsi_type}"
-  num_cpus             = "${var.ctl_vm_num_cpu}"
-  num_cores_per_socket = "${var.ctl_vm_num_cores_per_socket}"
-  memory               = "${var.ctl_vm_memory}"
+  num_cpus             = "${var.bth_count > 0 && count.index < var.bth_count ? var.wrk_vm_num_cpu : var.ctl_vm_num_cpu}"
+  num_cores_per_socket = "${var.bth_count > 0 && count.index < var.bth_count ? var.wrk_vm_num_cores_per_socket : var.ctl_vm_num_cores_per_socket}"
+  memory               = "${var.bth_count > 0 && count.index < var.bth_count ? var.wrk_vm_memory : var.ctl_vm_memory}"
 
   // Required by the vSphere cloud provider
   enable_disk_uuid = true
@@ -90,7 +90,7 @@ resource "vsphere_virtual_machine" "controller" {
 
   disk {
     label            = "disk0"
-    size             = "${var.ctl_vm_disk_size}"
+    size             = "${var.bth_count > 0 && count.index < var.bth_count ? var.wrk_vm_disk_size : var.ctl_vm_disk_size}"
     eagerly_scrub    = "${data.vsphere_virtual_machine.template.disks.0.eagerly_scrub}"
     thin_provisioned = "${data.vsphere_virtual_machine.template.disks.0.thin_provisioned}"
   }

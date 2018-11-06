@@ -178,6 +178,11 @@ variable "ctl_count" {
   default = "2"
 }
 
+// The number of controller nodes that are also able to schedule workloads.
+variable "bth_count" {
+  default = "2"
+}
+
 // The number of worker nodes
 variable "wrk_count" {
   default = "3"
