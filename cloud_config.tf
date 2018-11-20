@@ -107,9 +107,6 @@ data "template_file" "ccm_config" {
   datacenters        = "$${datacenter}"
 
 [VirtualCenter "$${server}"]
-
-[Network]
-  public-network     = "$${network}"
 EOF
 
   vars {
@@ -119,7 +116,6 @@ EOF
     port       = "${var.vsphere_server_port}"
     insecure   = "${var.vsphere_allow_unverified_ssl ? 1 : 0}"
     datacenter = "${var.vsphere_datacenter}"
-    network    = "${var.vsphere_network}"
   }
 }
 
